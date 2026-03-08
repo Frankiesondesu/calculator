@@ -1,4 +1,4 @@
-name: Build Calculator
+name: Build Dictpen Calculator
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build:
+  # Build for native Linux (for testing)
+  build-native:
     runs-on: ubuntu-latest
     
     steps:
@@ -26,18 +27,79 @@ jobs:
 
     - name: Configure with CMake
       run: |
-        mkdir -p build
-        cd build
+        mkdir -p build-native
+        cd build-native
         cmake ..
 
     - name: Build
       run: |
-        cd build
+        cd build-native
         make -j$(nproc)
 
-    - name: Upload artifact
+    - name: Upload native artifact
       uses: actions/upload-artifact@v4
       with:
-        name: calculator
-        path: build/bin/calculator
+        name: calculator-linux-x64
+        path: build-native/bin/calculator
+        retention-days: 7
+
+  # Build for Dictpen AArch64
+  build-dictpen:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+        fetch-depth: 0
+
+    - name: Clone Qt5 for Dictpen
+      run: |
+        git clone --depth 1 https://github.com/Lyrecoul/qt-5.15.2-for-aarch64-dictpen-linux.git
+
+    - name: Clone GCC Toolchain
+      run: |
+        git clone --depth 1 https://github.com/Lyrecoul/aarch64-dictpen-linux-gnu-gcc-toolchain.git
+
+    - name: Clone Dictpen Libs
+      run: |
+        git clone --depth 1 https://github.com/Lyrecoul/dictpen-libs.git
+
+    - name: Setup toolchain permissions
+      run: |
+        chmod +x aarch64-dictpen-linux-gnu-gcc-toolchain/aarch64-dictpen-linux-gnu/bin/*
+
+    - name: Configure with CMake (AArch64 Cross-Compile)
+      run: |
+        mkdir -p build-dictpen
+        cd build-dictpen
+        cmake .. \
+          -DCMAKE_TOOLCHAIN_FILE=../aarch64-dictpen-linux-gnu-gcc-toolchain.cmake \
+          -DCMAKE_PREFIX_PATH=../dictpen-libs \
+          -DQt5Core_DIR=../dictpen-libs/lib/cmake/Qt5Core \
+          -DQt5Gui_DIR=../dictpen-libs/lib/cmake/Qt5Gui \
+          -DQt5Widgets_DIR=../dictpen-libs/lib/cmake/Qt5Widgets
+
+    - name: Build for Dictpen
+      run: |
+        cd build-dictpen
+        make -j$(nproc)
+
+    - name: Create deployment package
+      run: |
+        mkdir -p deploy
+        cp build-dictpen/bin/calculator deploy/
+        # Copy required Qt libraries
+        cp -r dictpen-libs/lib/*.so* deploy/ 2>/dev/null || true
+        # Copy Qt plugins if needed
+        cp -r dictpen-libs/qt/plugins deploy/ 2>/dev/null || true
+        # Copy Qt translations
+        cp -r qt-5.15.2-for-aarch64-dictpen-linux/translations deploy/ 2>/dev/null || true
+
+    - name: Upload Dictpen artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: calculator-dictpen-aarch64
+        path: deploy/
         retention-days: 7
