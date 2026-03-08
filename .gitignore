@@ -11,7 +11,8 @@ target/
 *.exe
 *.out
 
-# Toolchains and cross-compilation
+# Toolchains and cross-compilation (keep the toolchain file)
+!aarch64-dictpen-linux-gnu-gcc-toolchain.cmake
 *aarch64*-toolchain*
 *aarch64*/ 
 
